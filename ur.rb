@@ -1,13 +1,10 @@
 require 'colorize'
-DISC = "\u2B24".encode('utf-8')
 COLORS = { :empty => :yellow, :one => :red, :two => :blue}
-KEYS = ["q","w","e","r","t",]
 
 class Square
 
   @@rosette = "\u273c".encode('utf-8')
   @@square = "\u2395".encode('utf-8')
-
 
   def initialize
     @state = :empty
@@ -77,17 +74,28 @@ class Player
     ("o" * @tokens_out).colorize(COLORS[@id])
   end
 
-  def roll_dice
-    @one_dice = [0,1]
-    @luck = 0
-    4.times {
-      @luck += @one_dice.sample
-    }
-    @luck
+  def who
+    @id == :one ? "Red" : "Blue"
+  end
+
+  def id
+    @id
   end
 end
 
 class Game
+  @@messages = {
+    :help =>
+    "Press a key to choose the square you want to move from.\n" +
+    "w selects the first square in the first row.\n" +
+    "The other squares go in this fashion:\n\n" +
+    "\tqwerty\n" +
+    "\tasdefghjk\n" +
+    "\tzxcvbn\n\n" +
+    "p to get a new piece in the board.",
+    :nokey =>
+    "Sorry, wrong key"
+  }
   @@lane_one = [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
   @@lane_two = [14,15,16,17,4,5,6,7,8,9,10,11,18,19]
   @@rosettes = [3,7,13,17,19]
@@ -98,7 +106,7 @@ class Game
   ]
   @@keys = {
     "q"=>17, "w"=>16, "e"=>15, "r"=>14, "t"=>19, "y"=>18,
-    "a"=>4, "s"=>5, "d"=>6, "f"=>7, "g"=>8, "h"=>8, "j"=>9, "k"=>10, "l"=>11,
+    "a"=>4, "s"=>5, "d"=>6, "f"=>7, "g"=>8, "h"=>9, "j"=>10, "k"=>11,
     "z"=>3, "x"=>2, "c"=>1, "v"=>0, "b"=>13, "n"=>12,
     "p"=>-1
             }
@@ -107,7 +115,8 @@ class Game
     @board = Array.new(20) { Square.new }
     @@rosettes.each {|x| @board[x].set_rosette }
     @players =  [ Player.new(:one), Player.new(:two) ]
-    @active = @players[0]
+    puts @players[0].id
+    @player = @players[0]
   end
 
   def print_row(a_row)
@@ -134,12 +143,49 @@ class Game
     puts
   end
 
+  def switch_player
+    @player.id == :one ? @players[1] : @players[0]
+  end
+
+  def handle_move
+    puts "Choose your move, ? for help"
+    move = gets[0]
+    if move == "?"
+      puts @@messages[:help]
+    elsif @@keys.include?(move)
+      key = @@keys[move]
+      puts "dfdf #{@player.id}"
+      @board[key].set(@player.id)
+    else
+      puts @@messages[:nokey]
+      handle_move
+    end
+  end
+
+
+
   def turn
-    show
+    game_won = false
+    until game_won
+      show
+      puts "Player #{@player.who} hit enter to roll your dice"
+      gets
+      @dice = 0
+      4.times { @dice += [0,1].sample }
+      puts "You rolled #{@dice}"
+      if @dice == 0
+        puts "Sorry, lost your turn"
+        @player = switch_player
+      else
+        handle_move
+      end
+      @player = switch_player
+    end
+  end
 
 
 end
 
 game = Game.new
 
-game.show
+game.turn
