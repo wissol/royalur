@@ -34,7 +34,13 @@ class Square
     end
   end
 
+  def reset
+    @state = :empty
+  end
 
+  def state
+    @state
+  end
 end
 
 class Player
@@ -81,6 +87,14 @@ class Player
   def id
     @id
   end
+
+  def tokens_out?
+    @tokens_out > 0 ? true : false
+  end
+
+  def tokens_out_mod(inc)
+    @tokens_out += inc
+  end
 end
 
 class Game
@@ -96,8 +110,10 @@ class Game
     :nokey =>
     "Sorry, wrong key"
   }
-  @@lane_one = [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
-  @@lane_two = [14,15,16,17,4,5,6,7,8,9,10,11,18,19]
+  @@lanes = {
+    :one => [0,1,2,3,4,5,6,7,8,9,10,11,12,13],
+    :two => [14,15,16,17,4,5,6,7,8,9,10,11,18,19]
+  }
   @@rosettes = [3,7,13,17,19]
   @@rows =  [
     [17,16,15,14,nil,nil,19,18],
@@ -117,6 +133,12 @@ class Game
     @players =  [ Player.new(:one), Player.new(:two) ]
     puts @players[0].id
     @player = @players[0]
+  end
+
+  def go_in_lane(from, how_much, id)
+    lane = @@lanes[id]    
+    from = lane.find_index(from) unless from == -1
+    @board[lane[from + how_much]]
   end
 
   def print_row(a_row)
@@ -153,9 +175,26 @@ class Game
     if move == "?"
       puts @@messages[:help]
     elsif @@keys.include?(move)
+      puts "include move #{move}"
       key = @@keys[move]
-      puts "dfdf #{@player.id}"
-      @board[key].set(@player.id)
+      puts "#{@board[key].state} == #{@player.id}"
+      if key == -1
+        if @player.tokens_out?
+          square = go_in_lane(key,@dice,@player.id)
+          square.set(@player.id)
+          @player.tokens_out_mod(-1)
+        else
+          puts("sorry, no tokens out")
+          handle_move
+        end
+      elsif @board[key].state == @player.id
+        puts "I went here"
+        square = go_in_lane(key,@dice,@player.id)
+        square.set(@player.id)
+        @board[key].reset
+      else
+        puts "nothing to see there"
+      end
     else
       puts @@messages[:nokey]
       handle_move
@@ -175,7 +214,6 @@ class Game
       puts "You rolled #{@dice}"
       if @dice == 0
         puts "Sorry, lost your turn"
-        @player = switch_player
       else
         handle_move
       end
