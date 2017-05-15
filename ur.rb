@@ -26,10 +26,13 @@ class Square
   def set(new_state)
     if @state == :empty
       @state = new_state
-      :ok
+      @is_rosette ? :rosette : :ok
     elsif @is_rosette
       :occupied_rosette
+    elsif @state == new_state
+      :same_player
     else
+      @state = new_state
       :capture
     end
   end
@@ -48,22 +51,18 @@ class Player
   def initialize(player_id)
     @id = player_id
     @tokens_out = 7
-    @tokens_in = 0
     @score = 0
   end
 
   def token_finish
-    @tokens_in -= 1
     @score += 1
   end
 
   def token_captured
-    @tokens_in -= 1
     @tokens_out += 1
   end
 
   def token_in
-    @tokens_in += 1
     @tokens_out -= 1
   end
 
@@ -133,12 +132,21 @@ class Game
     @players =  [ Player.new(:one), Player.new(:two) ]
     puts @players[0].id
     @player = @players[0]
+    @dice = 0
   end
 
-  def go_in_lane(from, how_much, id)
-    lane = @@lanes[id]    
+  def go_in_lane(from, steps, id)
+    lane = @@lanes[id]
     from = lane.find_index(from) unless from == -1
-    @board[lane[from + how_much]]
+    target = from + steps
+    puts("target, #{target} = #{from} + #{steps}")
+    if target < 14
+      @board[lane[target]]
+    elsif target == 14
+      :goal
+    else
+      :went_over
+    end
   end
 
   def print_row(a_row)
@@ -169,7 +177,12 @@ class Game
     @player.id == :one ? @players[1] : @players[0]
   end
 
-  def handle_move
+  def stone_finish(key)
+    @board[key].reset
+    @player.token_finish
+  end
+
+  def choose_move
     puts "Choose your move, ? for help"
     move = gets[0]
     if move == "?"
@@ -185,37 +198,61 @@ class Game
           @player.tokens_out_mod(-1)
         else
           puts("sorry, no tokens out")
-          handle_move
+          choose_move
         end
       elsif @board[key].state == @player.id
-        puts "I went here"
         square = go_in_lane(key,@dice,@player.id)
-        square.set(@player.id)
-        @board[key].reset
+        if square == :goal
+          stone_finish(key)
+        elsif square == :went_over
+          puts "Sorry, you need to roll the exact number to exit the board"
+          choose_move
+        else
+          reason = square.set(@player.id)
+          if reason == :ok
+            @board[key].reset
+          elsif reason == :rosette
+            @board[key].reset
+            @player = switch_player # player will be switched again as we have another turn
+          elsif reason == :same_player
+            puts "You already have a stone there"
+          elsif reason == :occupied_rosette
+            puts "You can't move into an occupied rosette"
+          else
+            @board[key].reset
+            @player = switch_player
+            @player.token_captured
+            @player = switch_player
+          end
+        end
       else
-        puts "nothing to see there"
+        puts "That is not a token of yours"
+        choose_move
       end
     else
       puts @@messages[:nokey]
-      handle_move
+      choose_move
     end
+  end
+
+  def dice
+    puts "Player #{@player.who} hit enter to roll your dice"
+    gets
+    @dice = 0
+    4.times { @dice += [0,1].sample }
+    puts "You rolled #{@dice}"
   end
 
 
 
   def turn
-    game_won = false
-    until game_won
+    until @player.won?
       show
-      puts "Player #{@player.who} hit enter to roll your dice"
-      gets
-      @dice = 0
-      4.times { @dice += [0,1].sample }
-      puts "You rolled #{@dice}"
+      dice
       if @dice == 0
         puts "Sorry, lost your turn"
       else
-        handle_move
+        choose_move
       end
       @player = switch_player
     end
