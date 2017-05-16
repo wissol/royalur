@@ -3,8 +3,8 @@ COLORS = { :empty => :yellow, :one => :red, :two => :blue}
 
 class Square
 
-  @@rosette = "\u273c".encode('utf-8')
-  @@square = "\u2395".encode('utf-8')
+  @@rosette = "\u2743".encode('utf-8')
+  @@square = "\u25a3".encode('utf-8')
 
   def initialize
     @state = :empty
@@ -16,9 +16,9 @@ class Square
 
   def show
     if @is_rosette
-      @answer = @@rosette
+      @answer = @@rosette + " "
     else
-      @answer = @@square
+      @answer = @@square + " "
     end
       @answer.colorize(COLORS[@state])
   end
@@ -121,8 +121,8 @@ class Game
   ]
   @@keys = {
     "q"=>17, "w"=>16, "e"=>15, "r"=>14, "t"=>19, "y"=>18,
-    "a"=>4, "s"=>5, "d"=>6, "f"=>7, "g"=>8, "h"=>9, "j"=>10, "k"=>11,
-    "z"=>3, "x"=>2, "c"=>1, "v"=>0, "b"=>13, "n"=>12,
+    "a"=>4,  "s"=>5, "d"=>6, "f"=>7, "g"=>8, "h"=>9, "j"=>10, "k"=>11,
+    "z"=>3,  "x"=>2, "c"=>1, "v"=>0, "b"=>13, "n"=>12,
     "p"=>-1
             }
 
@@ -138,14 +138,20 @@ class Game
   def go_in_lane(from, steps, id)
     lane = @@lanes[id]
     from = lane.find_index(from) unless from == -1
-    target = from + steps
-    puts("target, #{target} = #{from} + #{steps}")
-    if target < 14
-      @board[lane[target]]
-    elsif target == 14
-      :goal
+    puts("target = #{from} + #{steps}")
+    if from == nil
+      puts "That is not a stone of yours"
+      choose_move
     else
-      :went_over
+      target = from + steps
+      puts("target, #{target} = #{from} + #{steps}")
+      if target < 14
+        @board[lane[target]]
+      elsif target == 14
+        :goal
+      else
+        :went_over
+      end
     end
   end
 
@@ -182,26 +188,39 @@ class Game
     @player.token_finish
   end
 
+  def token_enter(square)
+    reason = square.set(@player.id)
+    if reason == :rosette
+      @player.tokens_out_mod(-1)
+      @player = switch_player # player will be switched again as we have another turn
+    elsif reason == :same_player
+      puts "You already have a stone there"
+      choose_move
+    elsif reason == :occupied_rosette
+      puts "You can't move into an occupied rosette"
+      choose_move
+    else
+      @player.tokens_out_mod(-1)
+    end
+  end
+
   def choose_move
     puts "Choose your move, ? for help"
     move = gets[0]
     if move == "?"
       puts @@messages[:help]
     elsif @@keys.include?(move)
-      puts "include move #{move}"
       key = @@keys[move]
-      puts "#{@board[key].state} == #{@player.id}"
+      puts "key is #{key}"
+      square = go_in_lane(key,@dice,@player.id)
       if key == -1
         if @player.tokens_out?
-          square = go_in_lane(key,@dice,@player.id)
-          square.set(@player.id)
-          @player.tokens_out_mod(-1)
+          token_enter(square)
         else
           puts("sorry, no tokens out")
           choose_move
         end
       elsif @board[key].state == @player.id
-        square = go_in_lane(key,@dice,@player.id)
         if square == :goal
           stone_finish(key)
         elsif square == :went_over
@@ -216,8 +235,10 @@ class Game
             @player = switch_player # player will be switched again as we have another turn
           elsif reason == :same_player
             puts "You already have a stone there"
+            choose_move
           elsif reason == :occupied_rosette
             puts "You can't move into an occupied rosette"
+            choose_move
           else
             @board[key].reset
             @player = switch_player
@@ -244,9 +265,8 @@ class Game
   end
 
 
-
   def turn
-    until @player.won?
+    loop do
       show
       dice
       if @dice == 0
@@ -254,7 +274,11 @@ class Game
       else
         choose_move
       end
-      @player = switch_player
+      if @player.won?
+        break
+      else
+        @player = switch_player
+      end
     end
   end
 
